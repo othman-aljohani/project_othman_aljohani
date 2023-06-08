@@ -1,0 +1,470 @@
+#include <TFT_eSPI.h>  //الشاشة
+#include <SPI.h>       // الرسم
+#include <Keypad.h> // مكتبة الكيباد
+
+// الشاشة تعيين الاطراف
+#define TFT_CS 15
+#define TFT_DC 2
+#define TFT_MOSI 23
+#define TFT_SCLK 18
+
+#define buzzer 5
+// ///////////////////////////
+TFT_eSPI tft = TFT_eSPI(); // تعريف الشاشة
+TFT_eSprite spr = TFT_eSprite(&tft);  //تعريف رسم للطباعة بإسم  spr
+const byte ROWS = 4;     // تعرف مصفوفات الكيباد
+const byte COLS = 4;
+
+char keys[ROWS][COLS] = {
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'B'},
+  {'7', '8', '9', 'C'},
+  {'*', '0', '#', 'D'}};
+
+uint8_t colPins[COLS] = { 26, 25, 33, 32 }; // Pins connected to C1, C2, C3, C4
+uint8_t rowPins[ROWS] = { 13, 12, 14, 27 }; // Pins connected to R1, R2, R3, R4
+
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+ //الكوره وخصاصها
+
+const int ball_radius = 10;
+int ball_x = tft.width() / 2; // موقع اكس
+int ball_y = tft.height() / 2; //موقع واي
+float ball_dx = 0;
+float ball_dy = 0;
+int ball_max_x = tft.width() - ball_radius;
+int ball_max_y = tft.height() - ball_radius;
+int difficulty = 1; // difficulty level, initialized to easy
+int ballSpeed = 5; // سرعة الكوره
+int ballX = 0; // موقع الكره اكس
+int ballY = 0; // موقع الكوره واي
+int gameTime = 0; // الوقت
+
+
+unsigned long lastUpdateTime = 0; // وقت التحديت
+int curs_col=0;
+unsigned long startTime;
+unsigned long timerLength = 30000; // طول الوقت بالمللي ثانية (30 ثانية)
+  // Define score properties
+
+int score =        0;
+const int score_x = 5;
+const int score_y = 5;
+const int score_size = 2;
+
+unsigned long prevMillis = 0; // تعريف متغير الوقت السابق
+volatile long interval = 3000;  // interval at which to blink (milliseconds)
+
+/////////////state variable   متغيرات الخطوة
+volatile uint8_t page_count =0;    // الصفحة
+volatile uint8_t welcome_steps = 0;  // الصفحة الترحيبية
+volatile uint8_t level_steps = 5;   // تحديد المستوى
+volatile uint8_t game_steps = 0;   // اللعبة
+volatile uint8_t last_steps = 0;   // الصفحة النهائية للنتيجة
+
+void abc(){
+	tone(buzzer,1915);
+	delay(10);
+	tone(buzzer,0);
+}
+
+
+void welcome();
+void level();
+void game();
+void last();
+void res();
+void displayGame();
+void gameTime1();
+
+void setup(){
+
+  tft.begin(); //تهية الشاشة
+  tft.setRotation(0); // تدوير الشاشة بزاوية 270 درجة
+
+  Serial.begin(9600);
+  welcome(); //الصفحة الترحبية
+  res();
+	abc();
+  // gameTime1(); //زمن اللعبة
+  // displayGame();// الخطوات  
+}  
+
+void loop(){
+  game();// القيم
+}
+
+int t_x0 = 160 ;
+int t_y0 = 20 ;
+int t_x1 = 180;
+int t_y1 = 5 ;
+int t_x2 = 180 ;
+int t_y2 = 30 ;
+
+int inc_level = 0 ;    ///للزيادة
+int game_level = 0;
+
+void level(){
+	char key = 0; // تعريف الكيباد
+	char key_press = 0;
+	
+	if(level_steps == 0){
+		tft.fillScreen(TFT_BLACK);
+		
+		level_steps++;
+	}
+
+	if(level_steps == 1){
+		tft.setTextColor(TFT_ORANGE,TFT_MAROON);
+		tft.setCursor(20, 10, 1);
+		tft.println("1.Hard");
+		tft.setCursor(20, 50, 1);
+		tft.println("2.Normal");
+		tft.setCursor(20, 90, 1);
+		tft.println("3.easy");
+		level_steps++;
+	}
+
+	if(level_steps == 2){
+		///               x ,y  , x1,y1, x2,y2
+		tft.fillTriangle(t_x0,(t_y0 + inc_level) ,t_x1,(t_y1+ inc_level),t_x2,(t_y2+ inc_level), TFT_WHITE);
+
+		do{
+			key = keypad.getKey(); // تعريف الكيباد
+			key_press = keypad.getKey();
+			if( key_press == '8'){
+				abc();
+				
+				inc_level = inc_level + 40;
+				interval = interval + 1000;	
+				
+				/// x ,y  , x1,y1, x2,y2
+				tft.fillScreen(TFT_BLACK);
+				tft.setTextColor(TFT_ORANGE,TFT_MAROON);
+				tft.setCursor(50, 10, 1);
+				tft.println("1.Hard");
+				tft.setCursor(50, 50, 1);
+				tft.println("2.Normal");
+				tft.setCursor(50, 90, 1);
+				tft.println("3.easy");				
+						
+				tft.fillTriangle(t_x0,(t_y0 + inc_level) ,t_x1,(t_y1+ inc_level),t_x2,(t_y2+ inc_level),TFT_WHITE);
+							
+				
+				if(inc_level == 120){
+					inc_level = 0;
+					interval = 1000;
+				}
+			}			
+		}while(key != 'A');
+		game_level = inc_level;
+		abc();
+	}
+}
+
+#define HARD	0
+#define NORMAL	40
+#define EASY	80
+
+bool game_init_lock = 0;
+bool game_lock = 0;
+
+void game(){
+
+	
+	if(!game_lock){
+		game_lock = 1;
+		if(!game_init_lock){
+			level();
+			
+		  unsigned long prevMillis = millis(); // تعريف متغير لتخزين
+		 
+			Serial.println("Selected level is:");
+			if(game_level == HARD){
+				Serial.println("HARD");
+			}
+			else if(game_level == NORMAL){
+				Serial.println("NORMAL");
+			}
+			else if(game_level == EASY){
+				Serial.println("EASY");
+			}	
+			game_init_lock = 1;		
+		}
+		
+		tft.fillScreen(TFT_BLACK);
+		tft.setCursor(0, 0);
+
+		switch (game_level) {
+
+		  case HARD:         //  هنا عرفت المستوى A
+		   ball_dx = 20;
+		   ball_dy = 20;
+		   gameTime =15;  // زمن المستوى
+		   
+		   Serial.println("Enterd hard mode");
+
+		   while (gameTime > 0) {
+
+			 tft.fillScreen(TFT_BLACK);
+			 tft.setCursor(150, 10); // تحديد مكان عرض النص على الشاشة
+			 tft.setTextSize(2);
+			 tft.println(gameTime); // عرض العداد على الشاشة
+			 displayGame(); // عرض اللعبة على الشاشة
+
+			 if (millis() - prevMillis >= 500) {
+			   prevMillis = millis(); // تحديث وقت البدء
+			   gameTime--; // تخفيض العداد بمقدار 1
+			 }
+		   }
+
+		   tft.fillScreen(TFT_BLACK);
+			tft.setTextSize(3);
+			tft.setCursor(60,190); // تحديد مكان عرض النص على الشاشة
+			tft.print("GAMEOVER"); // عرض رسالة "تم!" على الشاشة
+			tft.setCursor(40,220); // تحديد مكان عرض النص على الشاشة
+			tft.print("Score: ");
+			tft.print(score);  // عدد النقاط
+
+		  break;
+
+		  case NORMAL: // المستوى B
+		   ball_dx = 20;
+		   ball_dy = 20;
+		   gameTime =10;
+		   
+		   Serial.println("Enterd normal mode");
+
+		   while (gameTime > 0) {
+			 tft.fillScreen(TFT_BLACK);
+			 tft.setCursor(150, 10); // تحديد مكان عرض النص على الشاشة
+			 tft.setTextSize(2);
+			 tft.println(gameTime); // عرض العداد على الشاشة        
+
+			 displayGame(); // عرض اللعبة على الشاشة
+
+			 if (millis() - prevMillis >= 500) {
+				prevMillis = millis(); // تحديث وقت البدء
+				gameTime--; // تخفيض العداد بمقدار 1
+			  }  
+			}
+
+			tft.fillScreen(TFT_BLACK);
+			tft.setTextSize(2);
+			tft.setCursor(60,190); // تحديد مكان عرض النص على الشاشة
+			tft.print("GAMEOVER"); // عرض رسالة "تم!" على الشاشة
+			tft.setCursor(40,220); // تحديد مكان عرض النص على الشاشة
+			tft.print("Score: ");
+			tft.print(score);
+		   
+		  break;
+
+		  case EASY:
+		   ball_dx = 20;
+		   ball_dy = 20;
+		   gameTime =5;
+		   
+		   Serial.println("Enterd easy mode");
+
+		   while (gameTime > 0) {
+
+			 tft.fillScreen(TFT_BLACK);
+			 tft.setCursor(150, 10); // تحديد مكان عرض النص على الشاشة
+			 tft.setTextSize(2);
+			 tft.println(gameTime); // عرض العداد على الشاشة
+			 displayGame(); // عرض اللعبة على الشاشة
+
+			 if (millis() - prevMillis >= 500) {
+
+			   prevMillis = millis(); // تحديث وقت البدء
+			   gameTime--; // تخفيض العداد بمقدار 1
+
+			 }  
+		   }
+
+		   tft.fillScreen(TFT_BLACK);
+			tft.setTextSize(3);
+			tft.setCursor(60,190); // تحديد مكان عرض النص على الشاشة
+			tft.print("GAMEOVER"); // عرض رسالة "تم!" على الشاشة
+			tft.setCursor(40,220); // تحديد مكان عرض النص على الشاشة
+			tft.print("Score: ");
+			tft.print(score);     
+
+		  break;
+
+		  // case '5':
+		   // ball_dx = 0;
+		   // ball_dy = 0;  
+		  // break;
+
+		}
+	}
+}
+
+void welcome(){
+   // عرض الصفحة الترحيبية
+  tft.fillScreen(TFT_BLACK);
+  tft.setCursor(0, 0);
+  tft.setTextColor(TFT_WHITE); // لون الخط
+  tft.setTextSize(3);// حجم الخط
+  tft.fillScreen(TFT_BLUE); // اختيار خلفية الشاشة باللون الأزرق
+  tft.println("  \n   Welcome \n \n");
+  delay(1000);
+  tft.setTextSize(2);
+  tft.println("Hassan Adnan Alhajul \n");
+  tft.println("Othman Fouad aljohani\n");
+  tft.setTextSize(3);
+  tft.println("     in \n\n");
+  delay(2000);
+  tft.println(" \n speed boxes  ");
+  
+  char levelChoice;
+  do {
+    levelChoice = keypad.getKey();
+  } while (levelChoice != 'A');
+  abc();
+  level_steps = 0;
+
+}
+
+void res(){
+  tft.setCursor(0, 0);
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(3);
+  tft.fillScreen(TFT_RED);
+  tft.println(" \n speed boxes  ");
+  tft.drawRect(10, 170, 220, 150, TFT_WHITE); // مواقع المربعات في الرسم
+  tft.fillRect(20, 180, 40, 40, TFT_WHITE);
+  tft.fillRect(170, 260, 40, 40,TFT_WHITE);
+  tft.fillCircle(120,290, 10, TFT_WHITE);
+  
+  char Choice;
+  do {
+    Choice = keypad.getKey();
+  } while (Choice != 'A');
+}
+
+void displayGame() {    // القيم
+
+	// while(){
+	  tft.fillScreen(TFT_BLACK);
+	  tft.setCursor(5, 5);
+	  tft.setTextSize(2);
+	  tft.setTextColor(TFT_WHITE);
+	  tft.print("Score:   ");// النقاط
+	  tft.fillRect(20, 40, 40, 40, TFT_RED);// المربعات
+	  tft.fillRect(180, 270, 40, 40, TFT_RED);
+
+	  // طبع الكورة
+	  tft.fillCircle(round(ball_x), round(ball_y), ball_radius,TFT_BLACK);
+
+	  // تغير موقع الكرة
+	  ball_x += ball_dx;
+	  ball_y += ball_dy;
+
+	  // استظام الكراة بي الحواف
+
+	  if (ball_x >= ball_max_x) {
+		ball_x = ball_max_x;
+		ball_dx = -ball_dx;  // عكس الاتجاه لزيادت النقاط
+	  }
+
+	  else if (ball_x <= ball_radius) {
+		ball_x = ball_radius;
+		ball_dx = -ball_dx;  // عكس الاتجاه لزيادة النقاط
+
+	  }
+
+	  if (ball_y >= ball_max_y) {
+		ball_y = ball_max_y;
+		ball_dy = -ball_dy;  //العكس لل y
+		score++;  //درجات الزيادة
+		tft.fillRect(score_x + 50, score_y, 50, 10,TFT_BLACK);
+		tft.setCursor(score_x + 50, score_y);
+		tft.print(score);  // Update score text
+
+	  }
+
+	  else if (ball_y <= ball_radius) {
+		ball_y = ball_radius;
+		ball_dy = -ball_dy;  // Reverse y direction
+	  }
+
+	  // رسم الكره التانية
+
+	  tft.fillCircle(round(ball_x), round(ball_y), ball_radius, TFT_WHITE);
+	  // delay(10);
+
+	  char key = keypad.getKey();
+
+	  // قراءة الأزرار
+
+	  if(key != NO_KEY) {
+
+		// تحديث سرعة الحركة بناءً على الأزرار المضغوطة
+		switch (key) {
+
+		  case '2': //اعلى
+			ball_dy = -15; // سرعة تحرك الكوره
+		  break;
+abc();
+		  case '8': // اسفل
+			ball_dy = 15;
+		  break;
+abc();
+		  case '4': //يسار
+			ball_dx = -15;
+		  break;
+abc();
+		  case '6': //يمين
+		   ball_dx = 15;
+			break;
+abc();
+		  default:
+			ball_dx = 0;
+			ball_dy = 0;
+			break;
+
+		}
+	  }		
+	// }
+   // الاعاده
+
+}
+
+void gameTime1(){
+
+   unsigned long currentTime = millis();
+
+  if (currentTime - lastUpdateTime >= 2000 / ballSpeed) {
+    //تزويد الوقت
+    ballX += 10;
+    ballY += 10;
+    lastUpdateTime = currentTime;  
+  }
+
+  //  تحديث الوقت
+  int remainingTime = gameTime - (currentTime /2000);
+
+  // انتها القيم
+  if (remainingTime <= 0) {
+
+  }
+
+}
+
+void last(){
+
+	if(last_steps == 0){
+		tft.fillScreen(TFT_BLACK);
+		tft.setCursor(50, 10, 4);
+		tft.setTextColor(TFT_GREEN,TFT_BLACK);
+		tft.print("                   ");
+		tft.setCursor(50, 10, 4);
+		tft.setTextColor(TFT_GREEN,TFT_WHITE);
+		tft.print("Game_over");
+		last_steps ++;
+	}
+}							
